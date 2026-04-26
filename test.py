@@ -4,66 +4,39 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager  # Automatically install chromedriver
+from webdriver_manager.chrome import ChromeDriverManager  # Automatically installs ChromeDriver
 
-import time
-
-# Set up Chrome options
+# Chrome options for headless CI/CD
 options = Options()
-options.add_argument("--headless")  # Run the browser in headless mode
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--remote-debugging-port=9222")
+options.add_argument("--headless=new")   # Use new headless mode
+options.add_argument("--no-sandbox")     # Required for CI
+options.add_argument("--disable-dev-shm-usage")  # Fix limited /dev/shm
 options.add_argument("--disable-gpu")
 options.add_argument("--disable-software-rasterizer")
 
-# Use webdriver-manager to handle ChromeDriver installation
-driver_path = ChromeDriverManager().install()  # Install and get the path of the chromedriver
+# Use webdriver-manager to install the compatible ChromeDriver automatically
+service = Service(ChromeDriverManager().install())
 
-# Use the Service class to pass the driver path
-service = Service(executable_path=driver_path)
-
-# Create the WebDriver instance with the Service and options
+# Create WebDriver
 driver = webdriver.Chrome(service=service, options=options)
 
 try:
-    # Open the local file
-    driver.get("file://" + "/var/www/html/index.html")
+    # Open local file (if using /var/www/html/index.html)
+    driver.get("file:///var/www/html/index.html")
 
-    # Wait for the element to be visible
+    # Wait for element with ID 'title'
     WebDriverWait(driver, 10).until(
         EC.visibility_of_element_located((By.ID, "title"))
     )
 
-    # Fetch the title text
     title = driver.find_element(By.ID, "title").text
 
-    # Assert the title is as expected
+    # Assert the title
     assert title == "Hello CI/CD", f"Expected 'Hello CI/CD' but got '{title}'"
-
-    print(f"Test Passed: Title is '{title}'")
+    print(f"TEST PASSED: Title is '{title}'")
 
 except Exception as e:
-    print(f"Test Failed: {e}")
+    print(f"TEST FAILED: {e}")
 
 finally:
     driver.quit()
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-
-options = Options()
-options.binary_location = "/usr/bin/chromium-browser"
-options.add_argument("--headless=new")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-
-service = Service("/usr/bin/chromedriver")
-driver = webdriver.Chrome(service=service, options=options)
-
-driver.get("http://localhost")
-
-assert "Hello CI/CD World" in driver.page_source
-print("TEST PASSED")
-
-driver.quit()
