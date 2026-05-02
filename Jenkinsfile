@@ -1,197 +1,32 @@
 pipeline {
     agent any
-
     environment {
-        GIT_REPO_URL = 'https://github.com/eyngelcondense/cicd.git'
-        GIT_CREDENTIALS_ID = 'github-pat'
+        GIT_REPO_URL = 'https://github.com/calvinjohnplacio/testlab.git'
+        GIT_CREDENTIALS_ID = 'github-pat2'
         GIT_BRANCH = 'main'
     }
-
     stages {
-
-        stage('Checkout SCM') {
-            steps {
-                checkout scm: [
-                    $class: 'GitSCM',
-                    branches: [[name: "*/${env.GIT_BRANCH}"]],
-                    userRemoteConfigs: [[
-                        url: "${env.GIT_REPO_URL}",
-                        credentialsId: "${env.GIT_CREDENTIALS_ID}"
-                    ]]
-                ]
-            }
-        }
-
-        stage('Setup Python Environment') {
-            steps {
-                sh '''
-                echo "Setting up Python environment..."
-
-                python3 -m venv venv
-                . venv/bin/activate
-
-                pip install --upgrade pip
-                pip install -r requirements.txt
-                '''
-            }
-        }
-
-        stage('Run Selenium Test') {
-            steps {
-                sh '''
-                echo "Running Selenium tests..."
-
-                . venv/bin/activate
-                python test.py
-                '''
-            }
-        }
-
-        stage('Deploy to Apache') {
-            steps {
-                sh '''
-                echo "Deploying FULL PHP project to Apache..."
-
-                # Sync all files (NEW + UPDATED + DELETED)
-                sudo rsync -av -o --delete ./ /var/www/html/
-
-                # Fix ownership
-                sudo chown -R www-data:www-data /var/www/html/
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "CI/CD SUCCESS ✔ Deployment completed"
-        }
-        failure {
-            echo "CI/CD FAILED ❌ Check logs"
-        }
-        always {
-            cleanWs()
-        }
-    }
-}
-pipeline {
-    agent any
-
-    environment {
-        GIT_REPO_URL = 'https://github.com/eyngelcondense/cicd.git'
-        GIT_CREDENTIALS_ID = 'github-pat'
-        GIT_BRANCH = 'main'
-    }
-
-    stages {
-
         stage('Checkout') {
             steps {
-                git branch: "${env.GIT_BRANCH}",
-                    url: "${env.GIT_REPO_URL}",
-                    credentialsId: "${env.GIT_CREDENTIALS_ID}"
+                checkout([$class: 'GitSCM', branches: [[name: "*/${env.GIT_BRANCH}"]], userRemoteConfigs: [[url: "${env.GIT_REPO_URL}", credentialsId: "${env.GIT_CREDENTIALS_ID}"]]])
             }
         }
-
-        stage('Setup Python') {
+        stage('Detect Change') {
             steps {
-                sh '''
-                python3 -m venv venv
-                . venv/bin/activate
-                pip install --upgrade pip
-                pip install selenium
-                '''
+                script {
+                    def changed = sh(script: "git diff --name-only HEAD~1 HEAD | grep '.php' | head -n 1", returnStdout: true).trim()
+                    env.TARGET_PHP_FILE = changed ?: "index.php"
+                }
             }
         }
-
-        stage('Run Test') {
-            steps {
-                sh '''
-                . venv/bin/activate
-                python test.py
-                '''
-            }
-        }
-
         stage('Deploy') {
             steps {
                 sh '''
-                sudo rsync -av --delete ./ /var/www/html/
+                # Only runs if test.py exited with 0
+                sudo rsync -av --delete --exclude='venv/' --exclude='.git/' --exclude='staging/' ./ /var/www/html/
                 sudo chown -R www-data:www-data /var/www/html/
                 '''
             }
-        }
-    }
-
-    post {
-        success {
-            echo "CI/CD SUCCESS ✔"
-        }
-        failure {
-            echo "CI/CD FAILED ❌"
-        }
-    }
-}pipeline {
-    agent any
-
-    environment {
-        GIT_REPO_URL = 'https://github.com/eyngelcondense/cicd.git'
-        GIT_CREDENTIALS_ID = 'github-pat'
-        GIT_BRANCH = 'main'
-    }
-
-    stages {
-
-        stage('Checkout SCM') {
-            steps {
-                git branch: "${env.GIT_BRANCH}",
-                    url: "${env.GIT_REPO_URL}",
-                    credentialsId: "${env.GIT_CREDENTIALS_ID}"
-            }
-        }
-
-        stage('Setup Python Environment') {
-            steps {
-                sh '''
-                echo "Setting up Python environment..."
-                python3 -m venv venv
-                . venv/bin/activate
-                pip install --upgrade pip
-                pip install -r requirements.txt
-                '''
-            }
-        }
-
-        stage('Run Selenium Test') {
-            steps {
-                sh '''
-                echo "Running Selenium tests..."
-                . venv/bin/activate
-                python test.py
-                '''
-            }
-        }
-
-        stage('Deploy to Apache') {
-            steps {
-                sh '''
-                echo "Deploying project to Apache..."
-                sudo rsync -av --delete ./ /var/www/html/
-                sudo chown -R www-data:www-data /var/www/html/
-                '''
-            }
-        }
-    }
-
-    post {
-        success {
-            echo "CI/CD SUCCESS ✔ Deployment completed"
-        }
-        failure {
-            echo "CI/CD FAILED ❌ Check logs"
-        }
-        always {
-            cleanWs()  // Clean workspace after every run
         }
     }
 }
